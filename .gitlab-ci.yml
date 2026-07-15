@@ -1,0 +1,278 @@
+stages:
+  - test
+  - fix
+  - gate
+
+workflow:
+  rules:
+    # Run for merge-request events of every kind: opened, updated (push),
+    # label change, description change, etc. Without this, adding the
+    # skip-gate label may not retrigger the pipeline on some GitLab instances.
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    # Also run for direct pushes (non-MR pipelines).
+    - if: $CI_PIPELINE_SOURCE == "push"
+
+variables:
+  NPM_CONFIG_CACHE: "$CI_PROJECT_DIR/.npm"
+  # Optional: set this in the consuming project's CI/CD variables to stream
+  # token/cost data to a running dashboard, e.g. http://my-dashboard:4173
+  GITAGENTS_DASHBOARD_URL: ""
+  # Clone URL for GitAgents itself. Required: set it to wherever this repo lives
+  # (it may be another GitLab instance, or GitHub — the agents run either way).
+  # Example: https://github.com/<owner>/GitAgents.git
+  GITAGENTS_SOURCE_REPO: ""
+  GITAGENTS_SOURCE_REF: "master"
+  # Gate behavior:
+  #   off      = no gate job runs.
+  #   advisory = the gate runs and reports findings but never blocks the pipeline.
+  #   block    = a gate failure fails the pipeline. Pair with the project's
+  #              "Pipelines must succeed" merge check to actually block merges.
+  GITAGENTS_GATE_MODE: "advisory"
+  # Fix behavior:
+  #   suggest = post one-click suggestion comments; no commits are pushed.
+  #   push    = legacy behavior: the bot commits and pushes fixes to the branch.
+  #   off     = skip the fix job entirely.
+  GITAGENTS_FIX_MODE: "suggest"
+
+cache:
+  key: "gitagents-npm"
+  paths:
+    - .npm/
+
+.setup_agents:
+  before_script:
+    - 'echo "GitAgents CI template version: 2026-05-29-npm-strict-ssl-retry-v3"'
+    - test -n "$CLAUDE_API_KEY" || { echo "Missing required CI variable CLAUDE_API_KEY."; exit 1; }
+    - test -n "$GITLAB_TOKEN" || { echo "Missing required CI variable GITLAB_TOKEN."; exit 1; }
+    - test -n "$CI_SERVER_HOST" || { echo "Missing required CI variable CI_SERVER_HOST."; exit 1; }
+    - |
+      if [ -n "$GITAGENTS_DASHBOARD_URL" ]; then
+        echo "GitAgents dashboard telemetry enabled at $GITAGENTS_DASHBOARD_URL"
+      else
+        echo "GitAgents dashboard telemetry disabled. Set GITAGENTS_DASHBOARD_URL to stream token/cost data."
+      fi
+    - apt-get update && apt-get install -y --no-install-recommends git ca-certificates || { echo "Failed to install GitAgents CI prerequisites."; exit 1; }
+    - test -n "$GITAGENTS_SOURCE_REPO" || { echo "Set GITAGENTS_SOURCE_REPO to the clone URL of the GitAgents repository."; exit 1; }
+    - |
+      git clone --branch "${GITAGENTS_SOURCE_REF:-master}" "$GITAGENTS_SOURCE_REPO" /tmp/git-agents \
+        || { echo "Failed to clone GitAgents from $GITAGENTS_SOURCE_REPO. Check GITAGENTS_SOURCE_REPO/REF, token, and network."; exit 1; }
+    - git -C /tmp/git-agents rev-parse --short HEAD
+    - |
+      cd /tmp/git-agents || { echo "GitAgents clone directory was not created."; exit 1; }
+
+      # Target repos may define npm production/omit settings. They must not leak
+      # into GitAgents, because TypeScript/tsx are intentionally dev dependencies.
+      unset NPM_CONFIG_OMIT npm_config_omit NPM_CONFIG_ONLY npm_config_only NPM_CONFIG_PRODUCTION npm_config_production
+      export NODE_ENV=development
+      export NPM_CONFIG_INCLUDE=dev
+      export npm_config_include=dev
+      export NPM_CONFIG_AUDIT=false
+      export npm_config_audit=false
+      export NPM_CONFIG_FUND=false
+      export npm_config_fund=false
+
+      print_npm_logs() {
+        echo "--- npm debug logs ---"
+        logs="$(find "$CI_PROJECT_DIR/.npm/_logs" -type f -name "*-debug-*.log" 2>/dev/null | sort | tail -4 || true)"
+        if [ -n "$logs" ]; then
+          for log in $logs; do
+            echo "### $log"
+            sed -n '1,220p' "$log" || true
+          done
+        else
+          echo "No npm debug log found under $CI_PROJECT_DIR/.npm/_logs"
+        fi
+        echo "--- npm config ---"
+        npm config list || true
+      }
+
+      has_gitagents_tools() {
+        test -x node_modules/.bin/tsc && test -x node_modules/.bin/tsx
+      }
+
+      install_gitagents_deps() {
+        rm -rf node_modules
+        npm ci --include=dev --ignore-scripts --no-audit --no-fund
+      }
+
+      install_gitagents_deps
+      install_status=$?
+
+      if [ "$install_status" -ne 0 ] || ! has_gitagents_tools; then
+        echo "GitAgents npm install failed or produced incomplete node_modules."
+        print_npm_logs
+
+        if [ "${GITAGENTS_NPM_STRICT_SSL:-auto}" = "true" ]; then
+          echo "GITAGENTS_NPM_STRICT_SSL=true, not retrying with strict-ssl=false."
+          exit 1
+        fi
+
+        echo "Retrying GitAgents npm install with npm strict-ssl=false because the runner cannot validate the npm registry certificate."
+        export NPM_CONFIG_STRICT_SSL=false
+        export npm_config_strict_ssl=false
+        install_gitagents_deps || {
+          echo "Failed to install GitAgents npm dependencies after strict-ssl retry."
+          print_npm_logs
+          exit 1
+        }
+      fi
+
+      test -x node_modules/.bin/tsc || { echo "tsc binary missing after dependency install."; ls -la node_modules/.bin 2>/dev/null || true; print_npm_logs; exit 1; }
+      test -x node_modules/.bin/tsx || { echo "tsx binary missing after dependency install."; ls -la node_modules/.bin 2>/dev/null || true; print_npm_logs; exit 1; }
+      ./node_modules/.bin/tsc --build || { echo "Failed to build GitAgents workspace packages."; print_npm_logs; exit 1; }
+
+.review_artifacts:
+  artifacts: &review_artifacts
+    paths:
+      - review-result.json
+      - .npm/_logs/
+    expire_in: 30 days
+    when: always
+
+.fix_artifacts:
+  artifacts: &fix_artifacts
+    paths:
+      - fix-result.json
+      - .npm/_logs/
+    expire_in: 30 days
+    when: always
+
+code-review:
+  extends: .setup_agents
+  image: node:20-slim
+  stage: test
+  timeout: 20 minutes
+  variables:
+    REVIEW_API_TIMEOUT: "60000"
+  script:
+    - |
+      set +e
+      cd /tmp/git-agents && npx tsx src/cli.ts review \
+        --mr-id "$CI_MERGE_REQUEST_IID" \
+        --project-id "$CI_PROJECT_ID" \
+        --config-dir /tmp/git-agents/config \
+        --repo-dir "$CI_PROJECT_DIR" \
+        --artifact "$CI_PROJECT_DIR/review-result.json"
+      review_exit=$?
+      set -e
+      if [ "$review_exit" -ne 0 ] && [ ! -f "$CI_PROJECT_DIR/review-result.json" ]; then
+        echo "Code review failed before producing review-result.json."
+        exit "$review_exit"
+      fi
+      exit 0
+  artifacts: *review_artifacts
+  rules:
+    - if: '$CI_MERGE_REQUEST_LABELS =~ /(^|,\s*)skip-review(\s*,|$)/'
+      when: never
+    # Advisory mode: an operational failure of the review job must not block merges.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master" && $GITAGENTS_GATE_MODE == "advisory"'
+      when: on_success
+      allow_failure: true
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"'
+      when: on_success
+      allow_failure: false
+    - when: never
+
+code-fix:
+  extends: .setup_agents
+  image: node:20-slim
+  stage: fix
+  timeout: 10 minutes
+  resource_group: "gitagents-fix-$CI_PROJECT_ID-$CI_MERGE_REQUEST_IID"
+  needs:
+    - job: code-review
+      artifacts: true
+  script:
+    - cd "$CI_PROJECT_DIR"
+    - git config user.name "GitAgents Bot"
+    - git config user.email "gitagents-bot@noreply"
+    - |
+      cd /tmp/git-agents && npx tsx src/cli.ts fix \
+        --mr-id "$CI_MERGE_REQUEST_IID" \
+        --project-id "$CI_PROJECT_ID" \
+        --review-artifact "$CI_PROJECT_DIR/review-result.json" \
+        --fix-artifact "$CI_PROJECT_DIR/fix-result.json" \
+        --repo-dir "$CI_PROJECT_DIR"
+  artifacts: *fix_artifacts
+  rules:
+    - if: '$CI_MERGE_REQUEST_LABELS =~ /(^|,\s*)skip-auto-fix(\s*,|$)/'
+      when: never
+    - if: '$CI_MERGE_REQUEST_LABELS =~ /(^|,\s*)skip-review(\s*,|$)/'
+      when: never
+    - if: '$GITAGENTS_FIX_MODE == "off"'
+      when: never
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"'
+      when: on_success
+    - when: never
+  allow_failure: true
+
+code-gate:
+  image: node:20-slim
+  stage: gate
+  timeout: 5 minutes
+  needs:
+    - job: code-review
+      artifacts: true
+    - job: code-fix
+      artifacts: true
+      optional: true
+  script:
+    - 'echo "MR labels seen by gate: [$CI_MERGE_REQUEST_LABELS]"'
+    - |
+      # Strip whitespace and split on commas. Match skip-gate as a whole label,
+      # so e.g. "skip-gate-someday" or "do-not-skip-gate" do NOT match.
+      labels_clean=$(echo "$CI_MERGE_REQUEST_LABELS" | tr -d '[:space:]')
+      case ",$labels_clean," in
+        *,skip-gate,*)
+          echo "GitAgents gate overridden by 'skip-gate' label on MR !$CI_MERGE_REQUEST_IID. Findings (if any) are accepted as false positives or non-blocking; merge allowed."
+          exit 0
+          ;;
+      esac
+    - test -f review-result.json || { echo "Missing review-result.json artifact."; exit 1; }
+    - |
+      node <<'NODE'
+      const fs = require("fs");
+
+      const review = JSON.parse(fs.readFileSync("review-result.json", "utf8"));
+      const fixResult = fs.existsSync("fix-result.json")
+        ? JSON.parse(fs.readFileSync("fix-result.json", "utf8"))
+        : null;
+
+      if (review.reviewStatus === "rate-limited") {
+        console.log("Review was rate-limited; findings may be incomplete. Not blocking.");
+      }
+
+      if (fixResult && fixResult.fixesApplied === true) {
+        console.log(`GitAgents applied ${fixResult.appliedFixCount} fix(es). Waiting for the next pipeline to verify the updated commit.`);
+        process.exit(0);
+      }
+
+      const blocking = Array.isArray(review.blocking)
+        ? review.blocking
+        : (review.files || []).flatMap((file) => (file.findings || [])
+            .filter((f) => f.severity === "error" && f.confidence === "high")
+            .map((f) => ({ path: file.path, line: f.line, ruleId: f.ruleId, message: f.message })));
+
+      if (blocking.length > 0) {
+        console.error(`Blocking GitAgents findings remain:\n${blocking.map((f) => `- ${f.path}:${f.line} ${f.ruleId}: ${f.message}`).join("\n")}`);
+        console.error("\nIf these are false positives, add the 'skip-gate' label to the MR to override.");
+        process.exit(1);
+      }
+
+      console.log("GitAgents gate passed.");
+      NODE
+  artifacts: *review_artifacts
+  rules:
+    - if: '$CI_MERGE_REQUEST_LABELS =~ /(^|,\s*)skip-review(\s*,|$)/'
+      when: never
+    - if: '$GITAGENTS_GATE_MODE == "off"'
+      when: never
+    # Advisory mode matches first: the gate runs and reports but never blocks.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master" && $GITAGENTS_GATE_MODE == "advisory"'
+      when: on_success
+      allow_failure: true
+    # Block mode: a gate failure fails the pipeline.
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event" && $CI_MERGE_REQUEST_TARGET_BRANCH_NAME == "master"'
+      when: on_success
+      allow_failure: false
+    - when: never

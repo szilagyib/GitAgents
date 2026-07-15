@@ -1,0 +1,22 @@
+{
+  "name": "@gitagents/root",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "workspaces": ["packages/*"],
+  "bin": { "git-agents": "./src/cli.ts" },
+  "scripts": {
+    "build": "tsc --build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit",
+    "dashboard": "npm --workspace @gitagents/dashboard run dev",
+    "dashboard:build": "npm --workspace @gitagents/dashboard run build",
+    "dashboard:start": "npm --workspace @gitagents/dashboard run start"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0",
+    "tsx": "^4.10.0"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@gitagents/fix-agent",
+  "type": "module",
+  "version": "1.0.0",
+  "main": "./dist/cli.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@gitagents/core": "1.0.0",
+    "@gitagents/forge": "1.0.0"
+  }
+}

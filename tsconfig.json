@@ -1,0 +1,20 @@
+{
+  "files": [],
+  "references": [
+    {
+      "path": "./packages/core"
+    },
+    {
+      "path": "./packages/forge"
+    },
+    {
+      "path": "./packages/review-agent"
+    },
+    {
+      "path": "./packages/fix-agent"
+    },
+    {
+      "path": "./packages/dashboard"
+    }
+  ]
+}

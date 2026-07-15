@@ -1,0 +1,25 @@
+services:
+  dashboard:
+    # Build locally:
+    #   docker compose -f packages/dashboard/docker-compose.yml build
+    # Or pull from registry by setting `image:` and removing `build:`.
+    build:
+      context: ../..
+      dockerfile: packages/dashboard/Dockerfile
+    image: gitagents-dashboard:latest
+    container_name: gitagents-dashboard
+    restart: unless-stopped
+    ports:
+      - "4173:4173"
+    environment:
+      PORT: "4173"
+      # GITAGENTS_DASHBOARD_MAX_ACTIONS: "5000"
+      # GITAGENTS_DASHBOARD_MAX_BODY_BYTES: "1000000"
+      # Uncomment to enable Postgres-backed storage instead of in-memory:
+      # GITAGENTS_DASHBOARD_DATABASE_URL: "postgres://user:pass@db-host:5432/gitagents"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:4173/api/telemetry"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s

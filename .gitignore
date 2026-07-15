@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.claude/
+.npm/
+.env
+.env.*
+todo.txt
+CLAUDE.md
+*.js.map
+*.d.ts.map
+*.tsbuildinfo
+git-agents-telemetry.json
+review-result.json
+fix-result.json

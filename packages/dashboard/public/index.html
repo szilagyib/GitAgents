@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>GitAgents Cost Dashboard</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="topbar">
+        <div class="brand">
+          <div class="logo" aria-hidden="true">GA</div>
+          <div>
+            <p class="eyebrow">GitAgents live telemetry</p>
+            <h1>Agent Cost Dashboard</h1>
+          </div>
+        </div>
+        <div class="toolbar">
+          <button id="themeToggle" class="icon-button" type="button" aria-pressed="false" title="Toggle dark theme">Dark</button>
+          <button id="refreshButton" class="icon-button" type="button" title="Refresh telemetry">Refresh</button>
+        </div>
+      </header>
+
+      <section class="summary-grid" aria-label="Telemetry summary">
+        <div class="metric">
+          <span>Total cost</span>
+          <strong id="totalCost">$0.0000</strong>
+        </div>
+        <div class="metric">
+          <span>Total tokens</span>
+          <strong id="totalTokens">0</strong>
+        </div>
+        <div class="metric">
+          <span>Agent time</span>
+          <strong id="totalTime">0 ms</strong>
+        </div>
+        <div class="metric">
+          <span>Actions</span>
+          <strong id="totalActions">0</strong>
+        </div>
+      </section>
+
+      <section class="control-row" aria-label="Filters">
+        <label>
+          <span>Run</span>
+          <select id="runFilter"></select>
+        </label>
+        <label>
+          <span>Agent</span>
+          <select id="agentFilter"></select>
+        </label>
+        <label>
+          <span>Status</span>
+          <select id="statusFilter">
+            <option value="all">All</option>
+            <option value="ok">OK</option>
+            <option value="error">Error</option>
+          </select>
+        </label>
+        <label class="search">
+          <span>Search</span>
+          <input id="searchInput" type="search" placeholder="file, rule, model" />
+        </label>
+      </section>
+
+      <section class="insight-grid" aria-label="Dashboard insights">
+        <div class="insight-panel">
+          <div class="section-head">
+            <h2>Cost By File</h2>
+            <span id="fileCount"></span>
+          </div>
+          <div id="costByFile" class="rank-list"></div>
+        </div>
+        <div class="insight-panel">
+          <div class="section-head">
+            <h2>Slowest Actions</h2>
+            <span id="slowActionCount"></span>
+          </div>
+          <div id="slowestActions" class="rank-list"></div>
+        </div>
+      </section>
+
+      <section class="insight-grid" aria-label="Model and prompt metrics">
+        <div class="insight-panel">
+          <div class="section-head">
+            <h2>Model Comparison</h2>
+            <span id="modelCount"></span>
+          </div>
+          <div class="mini-table-wrap">
+            <table class="mini-table">
+              <thead>
+                <tr>
+                  <th>Model</th>
+                  <th>Actions</th>
+                  <th>Tokens</th>
+                  <th>Cost</th>
+                  <th>Time</th>
+                </tr>
+              </thead>
+              <tbody id="modelComparison"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="insight-panel">
+          <div class="section-head">
+            <h2>Prompt Efficiency</h2>
+            <span id="efficiencyScope"></span>
+          </div>
+          <div class="efficiency-grid">
+            <div>
+              <span>Findings</span>
+              <strong id="findingCount">0</strong>
+            </div>
+            <div>
+              <span>Cost / finding</span>
+              <strong id="costPerFinding">$0.00000</strong>
+            </div>
+            <div>
+              <span>Tokens / finding</span>
+              <strong id="tokensPerFinding">0</strong>
+            </div>
+            <div>
+              <span>Time / finding</span>
+              <strong id="timePerFinding">0 ms</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="insight-grid" aria-label="Token and error diagnostics">
+        <div class="insight-panel">
+          <div class="section-head">
+            <h2>Token Split</h2>
+            <span id="tokenSplitTotal"></span>
+          </div>
+          <div id="tokenSplit" class="split-chart"></div>
+          <div id="tokenSplitLegend" class="split-legend"></div>
+        </div>
+        <div class="insight-panel">
+          <div class="section-head">
+            <h2>Error Panel</h2>
+            <span id="errorCount"></span>
+          </div>
+          <div id="errorPanel" class="rank-list"></div>
+        </div>
+      </section>
+
+      <section class="chart-band" aria-label="Cost by action">
+        <div class="section-head">
+          <h2>Cost Timeline</h2>
+          <span id="pricingSource"></span>
+        </div>
+        <div id="timeline" class="timeline"></div>
+      </section>
+
+      <section class="table-wrap" aria-label="Agent actions">
+        <table>
+          <thead>
+            <tr>
+              <th>Started</th>
+              <th>Agent</th>
+              <th>Action</th>
+              <th>Target</th>
+              <th>Status</th>
+              <th>Model</th>
+              <th>Tokens</th>
+              <th>Cost</th>
+              <th>Time</th>
+            </tr>
+          </thead>
+          <tbody id="actionsBody"></tbody>
+        </table>
+      </section>
+
+      <aside id="detailPanel" class="detail-panel" aria-label="Action details">
+        <div class="section-head">
+          <h2>Action Detail</h2>
+          <button id="closeDetail" class="icon-button compact" type="button" title="Close detail">Close</button>
+        </div>
+        <dl id="detailList"></dl>
+      </aside>
+    </main>
+    <script src="/app.js?v=demo-telemetry" type="module"></script>
+  </body>
+</html>

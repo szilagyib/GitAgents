@@ -1,0 +1,207 @@
+name: GitAgents
+on:
+  workflow_call:
+    inputs:
+      dashboard_url:
+        description: "Optional GitAgents dashboard origin for telemetry."
+        required: false
+        type: string
+        default: ""
+      source_repo:
+        description: "GitAgents source repo (owner/repo on GitHub). Defaults to this repo's caller-pinned ref."
+        required: false
+        type: string
+        default: ""
+      source_ref:
+        description: "GitAgents source ref."
+        required: false
+        type: string
+        default: "master"
+      gate_mode:
+        description: "Gate behavior: off (no gate job), advisory (gate runs and reports but never blocks), block (gate failure fails the check)."
+        required: false
+        type: string
+        default: "advisory"
+      fix_mode:
+        description: "Fix behavior: suggest (one-click suggestion comments, no pushes), push (commit and push fixes), off (skip the fix job)."
+        required: false
+        type: string
+        default: "suggest"
+    secrets:
+      CLAUDE_API_KEY:
+        required: true
+      GH_PAT:
+        required: true
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'skip-review') }}
+    continue-on-error: ${{ inputs.gate_mode == 'advisory' }}
+    steps:
+      - name: Checkout consumer repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+      - name: Resolve GitAgents source repo
+        id: src
+        env:
+          INPUT_SOURCE_REPO: ${{ inputs.source_repo }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          if [ -n "$INPUT_SOURCE_REPO" ]; then
+            echo "repo=$INPUT_SOURCE_REPO" >> "$GITHUB_OUTPUT"
+          else
+            echo "repo=$(echo "$WORKFLOW_REF" | cut -d/ -f1-2)" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Checkout GitAgents
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.src.outputs.repo }}
+          ref: ${{ inputs.source_ref }}
+          path: .gitagents-src
+          token: ${{ secrets.GH_PAT }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Install & build GitAgents
+        working-directory: .gitagents-src
+        run: |
+          npm ci --include=dev --ignore-scripts --no-audit --no-fund \
+            || (npm config set strict-ssl false && npm ci --include=dev --ignore-scripts --no-audit --no-fund)
+          ./node_modules/.bin/tsc --build
+      - name: Run review
+        working-directory: .gitagents-src
+        env:
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GITAGENTS_DASHBOARD_URL: ${{ inputs.dashboard_url }}
+        run: |
+          npx tsx src/cli.ts review \
+            --forge github \
+            --pr "${{ github.event.pull_request.number }}" \
+            --config-dir "$GITHUB_WORKSPACE/.gitagents-src/config" \
+            --repo-dir "$GITHUB_WORKSPACE" \
+            --artifact "$GITHUB_WORKSPACE/review-result.json"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gitagents-review
+          path: review-result.json
+          retention-days: 30
+
+  fix:
+    runs-on: ubuntu-latest
+    needs: review
+    if: ${{ inputs.fix_mode != 'off' && !contains(github.event.pull_request.labels.*.name, 'skip-review') && !contains(github.event.pull_request.labels.*.name, 'skip-auto-fix') }}
+    steps:
+      - name: Checkout consumer repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GH_PAT }}
+          ref: ${{ github.event.pull_request.head.ref }}
+      - name: Resolve GitAgents source repo
+        id: src
+        env:
+          INPUT_SOURCE_REPO: ${{ inputs.source_repo }}
+          WORKFLOW_REF: ${{ github.workflow_ref }}
+        run: |
+          if [ -n "$INPUT_SOURCE_REPO" ]; then
+            echo "repo=$INPUT_SOURCE_REPO" >> "$GITHUB_OUTPUT"
+          else
+            echo "repo=$(echo "$WORKFLOW_REF" | cut -d/ -f1-2)" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Checkout GitAgents
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ steps.src.outputs.repo }}
+          ref: ${{ inputs.source_ref }}
+          path: .gitagents-src
+          token: ${{ secrets.GH_PAT }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - uses: actions/download-artifact@v4
+        with:
+          name: gitagents-review
+      - name: Install & build GitAgents
+        working-directory: .gitagents-src
+        run: |
+          npm ci --include=dev --ignore-scripts --no-audit --no-fund \
+            || (npm config set strict-ssl false && npm ci --include=dev --ignore-scripts --no-audit --no-fund)
+          ./node_modules/.bin/tsc --build
+      - name: Configure git identity
+        run: |
+          git config user.name "GitAgents Bot"
+          git config user.email "gitagents-bot@users.noreply.github.com"
+      - name: Run fix
+        working-directory: .gitagents-src
+        env:
+          CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+          GITAGENTS_DASHBOARD_URL: ${{ inputs.dashboard_url }}
+          GITAGENTS_FIX_MODE: ${{ inputs.fix_mode }}
+        run: |
+          npx tsx src/cli.ts fix \
+            --forge github \
+            --pr "${{ github.event.pull_request.number }}" \
+            --review-artifact "$GITHUB_WORKSPACE/review-result.json" \
+            --fix-artifact "$GITHUB_WORKSPACE/fix-result.json" \
+            --repo-dir "$GITHUB_WORKSPACE"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: gitagents-fix
+          path: fix-result.json
+          retention-days: 30
+
+  gate:
+    runs-on: ubuntu-latest
+    needs: [review, fix]
+    if: ${{ always() && inputs.gate_mode != 'off' && !contains(github.event.pull_request.labels.*.name, 'skip-review') }}
+    continue-on-error: ${{ inputs.gate_mode == 'advisory' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: gitagents-review
+      - uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: gitagents-fix
+      - name: Evaluate gate
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          if echo ",$LABELS," | tr -d '[:space:]' | grep -q ',skip-gate,'; then
+            echo "GitAgents gate overridden by 'skip-gate' label."
+            exit 0
+          fi
+          test -f review-result.json || { echo "Missing review-result.json artifact."; exit 1; }
+          node <<'NODE'
+          const fs = require("fs");
+          const review = JSON.parse(fs.readFileSync("review-result.json", "utf8"));
+          const fix = fs.existsSync("fix-result.json")
+            ? JSON.parse(fs.readFileSync("fix-result.json", "utf8")) : null;
+          if (review.reviewStatus === "rate-limited") {
+            console.log("Review was rate-limited; findings may be incomplete. Not blocking.");
+          }
+          if (fix && fix.fixesApplied === true) {
+            console.log(`GitAgents applied ${fix.appliedFixCount} fix(es). Waiting for the next run to verify.`);
+            process.exit(0);
+          }
+          const blocking = Array.isArray(review.blocking)
+            ? review.blocking
+            : (review.files || []).flatMap((f) => (f.findings || [])
+                .filter((x) => x.severity === "error" && x.confidence === "high")
+                .map((x) => ({ path: f.path, line: x.line, ruleId: x.ruleId, message: x.message })));
+          if (blocking.length > 0) {
+            console.error("Blocking GitAgents findings remain:\n" + blocking.map((b) => `- ${b.path}:${b.line} ${b.ruleId}: ${b.message}`).join("\n"));
+            console.error("\nIf these are false positives, add the 'skip-gate' label to the PR.");
+            process.exit(1);
+          }
+          console.log("GitAgents gate passed.");
+          NODE

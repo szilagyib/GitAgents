@@ -1,0 +1,14 @@
+{
+  "name": "@gitagents/review-agent",
+  "type": "module",
+  "version": "1.0.0",
+  "main": "./dist/cli.js",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@gitagents/core": "1.0.0",
+    "minimatch": "^10.2.5",
+    "@gitagents/forge": "1.0.0"
+  }
+}
