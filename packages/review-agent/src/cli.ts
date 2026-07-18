@@ -1,5 +1,5 @@
 import {
-  ClaudeClient,
+  createLlmClient,
   DashboardTelemetryRecorder,
   loadRules,
   loadPersonality,
@@ -38,7 +38,6 @@ interface CliArgs {
   artifactPath: string;
   apiBaseUrl: string;
   token: string;
-  claudeApiKey: string;
   contextWindowSize: number;
   apiTimeoutMs: number;
   maxDiffLines: number;
@@ -80,7 +79,6 @@ function parseArgs(argv: string[]): CliArgs {
     artifactPath: getArg("artifact", "review-result.json"),
     apiBaseUrl,
     token,
-    claudeApiKey: process.env.CLAUDE_API_KEY || "",
     contextWindowSize: parseInt(getArg("context-size", "20"), 10),
     apiTimeoutMs: parseInt(
       process.env.REVIEW_API_TIMEOUT || getArg("api-timeout", "60000"),
@@ -118,8 +116,9 @@ export async function runReview(argv: string[]): Promise<number> {
   });
 
   const telemetry = args.telemetryEnabled && args.dashboardUrl
-    ? new DashboardTelemetryRecorder({
-        dashboardUrl: args.dashboardUrl,
+      ? new DashboardTelemetryRecorder({
+          dashboardUrl: args.dashboardUrl,
+          token: process.env.GITAGENTS_DASHBOARD_TOKEN,
         runId: `review-${repo.slug.replace(/\W+/g, "-")}-${args.prNumber}-${Date.now()}`,
         metadata: {
           repoSlug: repo.slug,
@@ -129,12 +128,10 @@ export async function runReview(argv: string[]): Promise<number> {
         },
       })
     : undefined;
-  const claude = new ClaudeClient(
-    args.claudeApiKey,
-    undefined,
+  const claude = createLlmClient(process.env, {
     telemetry,
-    telemetry?.runId,
-  );
+    runId: telemetry?.runId,
+  });
 
   const rulesDir = resolve(args.configDir, "rules");
   const { common, languages } = loadRules(rulesDir);

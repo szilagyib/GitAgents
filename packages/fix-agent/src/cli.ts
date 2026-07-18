@@ -1,6 +1,6 @@
 import {
   computeFingerprint,
-  ClaudeClient,
+  createLlmClient,
   DashboardTelemetryRecorder,
   isReviewArtifact,
   isFixResultArtifact,
@@ -45,7 +45,6 @@ interface CliArgs {
   fixArtifactPath: string;
   apiBaseUrl: string;
   token: string;
-  claudeApiKey: string;
   apiTimeoutMs: number;
   telemetryEnabled: boolean;
   dashboardUrl: string;
@@ -95,7 +94,6 @@ function parseArgs(argv: string[]): CliArgs {
     fixArtifactPath: getArg("fix-artifact", "fix-result.json"),
     apiBaseUrl,
     token,
-    claudeApiKey: process.env.CLAUDE_API_KEY || "",
     apiTimeoutMs: parseInt(
       process.env.REVIEW_API_TIMEOUT || getArg("api-timeout", "60000"),
       10
@@ -205,6 +203,7 @@ function buildTelemetry(args: CliArgs, repoSlug: string, forgeKind: string) {
   return args.telemetryEnabled && args.dashboardUrl
     ? new DashboardTelemetryRecorder({
         dashboardUrl: args.dashboardUrl,
+        token: process.env.GITAGENTS_DASHBOARD_TOKEN,
         runId: `fix-${repoSlug.replace(/\W+/g, "-")}-${args.prNumber}-${Date.now()}`,
         metadata: {
           repoSlug,
@@ -297,12 +296,10 @@ async function runSuggestMode(
   }
 
   const telemetry = buildTelemetry(args, repo.slug, repo.forge);
-  const claude = new ClaudeClient(
-    args.claudeApiKey,
-    undefined,
+  const claude = createLlmClient(process.env, {
     telemetry,
-    telemetry?.runId,
-  );
+    runId: telemetry?.runId,
+  });
   const mrInfo = await forge.getPullRequest(repo, args.prNumber);
   const diffs = await forge.getDiffs(repo, args.prNumber);
   const diffByPath = new Map(diffs.map((d) => [d.newPath, d.diff]));
@@ -513,12 +510,10 @@ async function runPushMode(
   }
 
   const telemetry = buildTelemetry(args, repo.slug, repo.forge);
-  const claude = new ClaudeClient(
-    args.claudeApiKey,
-    undefined,
+  const claude = createLlmClient(process.env, {
     telemetry,
-    telemetry?.runId,
-  );
+    runId: telemetry?.runId,
+  });
   const mrInfo = await forge.getPullRequest(repo, args.prNumber);
 
   // Fixes chain onto already-fixed content, but finding line numbers index the

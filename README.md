@@ -54,7 +54,7 @@ Labels: `skip-review` (skip everything), `skip-auto-fix` (no fix job), `skip-gat
 
 GitAgents runs from its own checkout, so a consuming project only adds a CI entry point. It works whether GitAgents itself is hosted on GitHub or GitLab, and whether the project under review is on GitHub or GitLab.
 
-**Secrets**: `CLAUDE_API_KEY`, plus a token for the platform under review (`GH_PAT` on GitHub, `GITLAB_TOKEN` on GitLab). In suggest mode that token needs API/comment scope only — no repository write access.
+**Secrets**: `CLAUDE_API_KEY` for Anthropic or `OPENAI_API_KEY` for OpenAI-compatible models, plus a token for the platform under review (`GH_PAT` on GitHub, `GITLAB_TOKEN` on GitLab). In suggest mode that token needs API/comment scope only — no repository write access.
 
 ### GitHub pull requests
 
@@ -66,10 +66,12 @@ on: pull_request
 jobs:
   gitagents:
     uses: szilagyib/GitAgents/.github/workflows/gitagents.yml@main
+    with:
+      provider: openai
+      model: gpt-4.1-mini
     secrets:
-      CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       GH_PAT: ${{ secrets.GH_PAT }}
-    # with:
     #   gate_mode: block
     #   fix_mode: suggest
 ```
@@ -142,6 +144,36 @@ npm run dashboard
 ```
 
 Point the agents at it with `GITAGENTS_DASHBOARD_URL` and it shows cost per file, slowest actions, token split, cost per finding and failures, in a light and a dark theme.
+
+### Cloudflare Workers + D1
+
+The production dashboard runs as a Cloudflare Worker: static UI assets are served at the edge, telemetry is persisted in D1, and every API request requires a shared bearer token. The browser keeps that token in `sessionStorage`; it is never bundled into the site.
+
+Publish manually from a local checkout; no Git auto-deploy connection is required:
+
+```bash
+npm ci
+npm run dashboard:worker:typecheck
+npx wrangler login
+npx wrangler deploy --config packages/dashboard/wrangler.jsonc
+npx wrangler d1 migrations apply DB --remote --config packages/dashboard/wrangler.jsonc
+npx wrangler secret put DASHBOARD_TOKEN --config packages/dashboard/wrangler.jsonc
+```
+
+The first deploy provisions the `DB` D1 binding declared in `wrangler.jsonc`. The migration creates the telemetry table, and `secret put` prompts for the shared dashboard token without writing it to disk. Future releases use the same `wrangler deploy` command.
+
+Do not put `DASHBOARD_TOKEN` in `wrangler.jsonc` or a public GitHub variable. Save it as the `GITAGENTS_DASHBOARD_TOKEN` repository secret in each consumer.
+
+Configure consumers with both values:
+
+```yaml
+with:
+  dashboard_url: https://gitagents-dashboard.<account>.workers.dev
+secrets:
+  GITAGENTS_DASHBOARD_TOKEN: ${{ secrets.GITAGENTS_DASHBOARD_TOKEN }}
+```
+
+For the Docker/Node server, set `GITAGENTS_DASHBOARD_TOKEN` to enable the same API protection. Leaving it unset keeps localhost development frictionless.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-dark.png">

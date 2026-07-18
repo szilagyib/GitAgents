@@ -1,13 +1,13 @@
 import { describe, it, expect, vi } from "vitest";
 import { reviewFile } from "../src/reviewer";
-import type { ClaudeReviewResponse } from "@gitagents/core";
+import type { LlmReviewResponse } from "@gitagents/core";
 
-const mockReview = vi.fn<() => Promise<ClaudeReviewResponse>>();
+const mockReview = vi.fn<() => Promise<LlmReviewResponse>>();
 vi.mock("@gitagents/core", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@gitagents/core")>();
   return {
     ...actual,
-    ClaudeClient: vi.fn().mockImplementation(() => ({
+    LlmClient: vi.fn().mockImplementation(() => ({
       review: mockReview,
     })),
   };

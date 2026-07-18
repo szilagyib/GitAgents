@@ -1,5 +1,5 @@
 import {
-  ClaudeClient,
+  LlmClient,
   RateLimitError,
   type RuleMap,
   type LanguageRules,
@@ -43,7 +43,7 @@ const MAX_VERIFY_TOOL_ROUNDS = 3;
 
 export interface OrchestratorConfig {
   forge: Forge;
-  claudeClient: ClaudeClient;
+  claudeClient: LlmClient;
   repo: RepoRef;
   mrIid: number;
   sourceBranch: string;

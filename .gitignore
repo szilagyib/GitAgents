@@ -4,6 +4,9 @@ dist/
 .npm/
 .env
 .env.*
+.dev.vars
+.dev.vars.*
+.wrangler/
 todo.txt
 CLAUDE.md
 *.js.map

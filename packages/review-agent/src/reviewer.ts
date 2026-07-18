@@ -1,8 +1,8 @@
 import type {
-  ClaudeClient,
-  ClaudeSystemPrompt,
+  LlmClient,
+  LlmSystemPrompt,
   Finding,
-  ClaudeReviewResponse,
+  LlmReviewResponse,
 } from "@gitagents/core";
 import { runStaticChecks } from "./static-checks.js";
 import { normalizeFixability } from "./fixability.js";
@@ -10,11 +10,11 @@ import { normalizeFixability } from "./fixability.js";
 export interface ReviewFileInput {
   filePath: string;
   hybridContext: string;
-  systemPrompt: ClaudeSystemPrompt;
+  systemPrompt: LlmSystemPrompt;
   changedLines: number[];
   fileLines: string[];
   preFindings?: Finding[];
-  claudeClient: ClaudeClient;
+  claudeClient: LlmClient;
   timeoutMs: number;
 }
 
@@ -36,7 +36,7 @@ export async function reviewFile(
   const preFindings = input.preFindings ?? [];
 
   try {
-    const response: ClaudeReviewResponse = await input.claudeClient.review({
+    const response: LlmReviewResponse = await input.claudeClient.review({
       systemPrompt: input.systemPrompt,
       userPrompt: input.hybridContext,
       maxTokens: 4096,

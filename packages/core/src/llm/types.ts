@@ -1,28 +1,25 @@
 import type { Finding } from "../types.js";
 import type { ClaudeActionContext } from "../telemetry.js";
+import type { LlmSystemBlock, LlmToolSpec } from "./provider.js";
 
-export interface ClaudeSystemPromptBlock {
-  text: string;
-  cacheable?: boolean;
-}
+/** A system prompt: plain text, or cacheable blocks. */
+export type LlmSystemPrompt = string | LlmSystemBlock[];
 
-export type ClaudeSystemPrompt = string | ClaudeSystemPromptBlock[];
-
-export interface ClaudeReviewRequest {
-  systemPrompt: ClaudeSystemPrompt;
+export interface LlmReviewRequest {
+  systemPrompt: LlmSystemPrompt;
   userPrompt: string;
   maxTokens: number;
   timeoutMs: number;
   telemetry?: ClaudeActionContext;
 }
 
-export interface ClaudeReviewResponse {
+export interface LlmReviewResponse {
   findings: Finding[];
   summary: string;
 }
 
-export interface ClaudeFixRequest {
-  systemPrompt: ClaudeSystemPrompt;
+export interface LlmFixRequest {
+  systemPrompt: LlmSystemPrompt;
   userPrompt: string;
   fileContent: string;
   finding: Finding;
@@ -31,33 +28,26 @@ export interface ClaudeFixRequest {
   telemetry?: ClaudeActionContext;
 }
 
-export interface ClaudeFixResponse {
+export interface LlmFixResponse {
   patch: string;
 }
 
 export type VerifyVerdictKind = "confirm" | "demote" | "reject";
 
-export interface ClaudeVerifyVerdict {
+export interface LlmVerifyVerdict {
   index: number;
   verdict: VerifyVerdictKind;
   reason: string;
 }
 
-/** A read-only tool the verifier may call to gather evidence. */
-export interface ClaudeTool {
-  name: string;
-  description: string;
-  input_schema: Record<string, unknown>;
-}
-
 /** Runs a tool call and returns its result as text for the model. */
-export type ClaudeToolExecutor = (
+export type LlmToolExecutor = (
   name: string,
   input: Record<string, unknown>,
 ) => Promise<string>;
 
-export interface ClaudeVerifyRequest {
-  systemPrompt: ClaudeSystemPrompt;
+export interface LlmVerifyRequest {
+  systemPrompt: LlmSystemPrompt;
   userPrompt: string;
   maxTokens: number;
   timeoutMs: number;
@@ -68,14 +58,14 @@ export interface ClaudeVerifyRequest {
    * Never expose a tool with side effects: gating and comment posting are
    * code-enforced precisely so the model cannot decide them.
    */
-  tools?: ClaudeTool[];
-  executeTool?: ClaudeToolExecutor;
+  tools?: LlmToolSpec[];
+  executeTool?: LlmToolExecutor;
   /** Hard cap on tool round-trips; the budget bounds cost per file. */
   maxToolRounds?: number;
 }
 
-export interface ClaudeVerifyResponse {
-  verdicts: ClaudeVerifyVerdict[];
+export interface LlmVerifyResponse {
+  verdicts: LlmVerifyVerdict[];
   /** How many tool round-trips the model actually used. */
   toolRounds: number;
 }

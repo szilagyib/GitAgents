@@ -12,11 +12,14 @@
     "lint": "tsc --noEmit",
     "dashboard": "npm --workspace @gitagents/dashboard run dev",
     "dashboard:build": "npm --workspace @gitagents/dashboard run build",
-    "dashboard:start": "npm --workspace @gitagents/dashboard run start"
+    "dashboard:start": "npm --workspace @gitagents/dashboard run start",
+    "dashboard:worker:typecheck": "npm --workspace @gitagents/dashboard run worker:typecheck",
+    "dashboard:worker:dev": "npm --workspace @gitagents/dashboard run worker:dev",
+    "dashboard:worker:deploy": "npm --workspace @gitagents/dashboard run worker:deploy"
   },
   "devDependencies": {
     "typescript": "^5.4.0",
-    "vitest": "^1.6.0",
+    "vitest": "^4.1.10",
     "tsx": "^4.10.0"
   }
 }

@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync, statSync, existsSync } from "fs";
 import { join, relative, resolve, sep } from "path";
-import type { ClaudeTool, ClaudeToolExecutor } from "@gitagents/core";
+import type { LlmToolSpec, LlmToolExecutor } from "@gitagents/core";
 
 /**
  * Read-only evidence tools for the verification pass, served from the repo
@@ -33,14 +33,14 @@ const SKIP_DIRS = new Set([
 
 const TEXT_FILE = /\.(c|cc|cpp|cxx|h|hh|hpp|hxx|java|kt|kts|js|jsx|mjs|cjs|ts|tsx|mts|cts|py|rb|go|rs|cs|php|scala|swift|sql|sh|bash|yml|yaml|json|xml|gradle|properties|toml|ini|cfg|md|txt)$/i;
 
-export const REPO_TOOLS: ClaudeTool[] = [
+export const REPO_TOOLS: LlmToolSpec[] = [
   {
     name: "read_file",
     description:
       "Read a text file from the repository under review, at the revision being reviewed. " +
       "Use it to check a definition, a caller, or a guard that the diff does not show. " +
       "Returns 1-indexed numbered lines.",
-    input_schema: {
+    parameters: {
       type: "object",
       properties: {
         path: {
@@ -64,7 +64,7 @@ export const REPO_TOOLS: ClaudeTool[] = [
     description:
       "Search the repository for a literal string (for example a symbol, function or constant name). " +
       "Use it to find where something is defined, called, or validated before ruling on a finding.",
-    input_schema: {
+    parameters: {
       type: "object",
       properties: {
         query: { type: "string", description: "Literal text to search for." },
@@ -176,7 +176,7 @@ function searchRepoTool(repoDir: string, input: Record<string, unknown>): string
  * directory is not a usable checkout, so the caller simply verifies without
  * tools instead of failing.
  */
-export function createRepoToolExecutor(repoDir: string): ClaudeToolExecutor | null {
+export function createRepoToolExecutor(repoDir: string): LlmToolExecutor | null {
   if (!repoDir || !existsSync(repoDir)) return null;
 
   return async (name, input) => {

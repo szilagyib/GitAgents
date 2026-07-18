@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "http";
+import { timingSafeEqual } from "crypto";
 import { existsSync, readFileSync, statSync } from "fs";
 import { extname, relative, resolve } from "path";
 import { fileURLToPath } from "url";
@@ -15,8 +16,10 @@ const publicDir =
 const port = Number(process.env.PORT ?? 4173);
 const maxActions = Number(process.env.GITAGENTS_DASHBOARD_MAX_ACTIONS ?? 5000);
 const maxBodyBytes = Number(process.env.GITAGENTS_DASHBOARD_MAX_BODY_BYTES ?? 1_000_000);
+const dashboardToken = process.env.GITAGENTS_DASHBOARD_TOKEN?.trim() ?? "";
 const startedAt = new Date().toISOString();
-const pricingSource = "https://platform.claude.com/docs/en/docs/about-claude/pricing";
+const pricingSource =
+  "https://github.com/szilagyib/GitAgents/blob/main/packages/core/src/llm/pricing.ts";
 
 const contentTypes: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
@@ -84,6 +87,16 @@ async function handleRequest(
   const requestUrl = new URL(request.url ?? "/", `http://${request.headers.host}`);
 
   try {
+    if (requestUrl.pathname.startsWith("/api/") && !hasValidApiToken(request)) {
+      response.writeHead(401, {
+        "cache-control": "no-store",
+        "content-type": "application/json; charset=utf-8",
+        "www-authenticate": 'Bearer realm="GitAgents Dashboard"',
+      });
+      response.end(JSON.stringify({ error: "A valid dashboard token is required." }));
+      return;
+    }
+
     if (request.method === "GET" && requestUrl.pathname === "/api/telemetry") {
       sendJson(response, 200, await buildTelemetryArtifact(store));
       return;
@@ -106,6 +119,15 @@ async function handleRequest(
       error: error instanceof Error ? error.message : "Dashboard request failed.",
     });
   }
+}
+
+function hasValidApiToken(request: IncomingMessage): boolean {
+  if (!dashboardToken) return true;
+  const authorization = request.headers.authorization ?? "";
+  if (!authorization.startsWith("Bearer ")) return false;
+  const supplied = Buffer.from(authorization.slice("Bearer ".length));
+  const expected = Buffer.from(dashboardToken);
+  return supplied.length === expected.length && timingSafeEqual(supplied, expected);
 }
 
 function serveStaticFile(requestUrl: URL, response: ServerResponse): void {

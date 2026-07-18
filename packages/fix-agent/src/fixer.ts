@@ -1,4 +1,4 @@
-import { RateLimitError, type ClaudeClient, type Finding } from "@gitagents/core";
+import { RateLimitError, type LlmClient, type Finding } from "@gitagents/core";
 import { buildFixSystemPrompt, buildFixUserPrompt } from "./prompt-builder.js";
 import { applyUnifiedDiff } from "./patch.js";
 import { validateFix } from "./validator.js";
@@ -6,7 +6,7 @@ import { tryDeterministicFix } from "./deterministic-fixes.js";
 import type { FixResult } from "./types.js";
 
 export async function fixFinding(
-  claudeClient: ClaudeClient,
+  claudeClient: LlmClient,
   filePath: string,
   fileContent: string,
   finding: Finding,
