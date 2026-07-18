@@ -2,10 +2,6 @@
 
 AI code review, fix suggestions and an optional merge gate for **GitLab merge requests and GitHub pull requests** — one codebase, both platforms.
 
-![GitAgents cost dashboard](assets/dashboard-light.png)
-
-Every run streams its token usage and cost to a live dashboard, so you always know what the bot costs you.
-
 ---
 
 ## What it does
@@ -34,13 +30,19 @@ The model is never given a tool that acts — see [ADR 0001](docs/adr/0001-read-
 
 ## Modes
 
-| `GITAGENTS_GATE_MODE` | Behaviour |
+Two knobs control how far GitAgents goes. Set them as the `gate_mode` / `fix_mode` workflow inputs on GitHub, or as the `GITAGENTS_GATE_MODE` / `GITAGENTS_FIX_MODE` CI/CD variables on GitLab.
+
+**Gate** — how findings affect the merge:
+
+| Value | Behaviour |
 |---|---|
 | `advisory` *(default)* | The gate runs and reports; it never blocks a merge. |
 | `block` | Verified blocking findings fail the check. Pair with a required status / merge check. |
 | `off` | No gate job. |
 
-| `GITAGENTS_FIX_MODE` | Behaviour |
+**Fix** — what the bot does with a fix it can suggest:
+
+| Value | Behaviour |
 |---|---|
 | `suggest` *(default)* | Fixes are posted as one-click suggestion comments. Nothing is committed. |
 | `push` | The bot commits and pushes fixes to the source branch. |
@@ -63,7 +65,7 @@ on: pull_request
 
 jobs:
   gitagents:
-    uses: <owner>/GitAgents/.github/workflows/gitagents.yml@master
+    uses: szilagyib/GitAgents/.github/workflows/gitagents.yml@main
     secrets:
       CLAUDE_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
       GH_PAT: ${{ secrets.GH_PAT }}
@@ -77,10 +79,10 @@ jobs:
 ```yaml
 # .gitlab-ci.yml
 include:
-  - remote: 'https://raw.githubusercontent.com/<owner>/GitAgents/master/.gitlab-ci.yml'
+  - remote: 'https://raw.githubusercontent.com/szilagyib/GitAgents/main/.gitlab-ci.yml'
 
 variables:
-  GITAGENTS_SOURCE_REPO: "https://github.com/<owner>/GitAgents.git"
+  GITAGENTS_SOURCE_REPO: "https://github.com/szilagyib/GitAgents.git"
 ```
 
 Set `CLAUDE_API_KEY` and `GITLAB_TOKEN` as masked CI/CD variables.
@@ -133,13 +135,19 @@ Every platform call lives in `forge`. The agents never talk to GitLab or GitHub 
 
 ## Dashboard
 
+Every run streams its token usage and cost to a live dashboard, so you always know what the bot costs you.
+
 ```bash
 npm run dashboard
 ```
 
 Point the agents at it with `GITAGENTS_DASHBOARD_URL` and it shows cost per file, slowest actions, token split, cost per finding and failures, in a light and a dark theme.
 
-![GitAgents dashboard, dark theme](assets/dashboard-dark.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/dashboard-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/dashboard-light.png">
+  <img alt="GitAgents cost dashboard" src="assets/dashboard-light.png">
+</picture>
 
 ## Development
 
@@ -148,3 +156,7 @@ npm install
 npm run build
 npm test
 ```
+
+## License
+
+[MIT](LICENSE)
