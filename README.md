@@ -2,6 +2,12 @@
 
 AI code review, fix suggestions and an optional merge gate for **GitLab merge requests and GitHub pull requests** — one codebase, both platforms.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="assets/bot-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="assets/bot-light.png">
+  <img alt="GitAgents posting an inline review comment with a one-click fix suggestion on a pull request" src="assets/bot-light.png">
+</picture>
+
 ---
 
 ## What it does
