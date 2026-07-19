@@ -74,7 +74,7 @@ jobs:
           token: ${{ secrets.GH_PAT }}
       - uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "20"
           cache: npm
           cache-dependency-path: .gitagents-src/package-lock.json
       - name: Install & build GitAgents
@@ -126,7 +126,7 @@ jobs:
           token: ${{ secrets.GH_PAT }}
       - uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "20"
           cache: npm
           cache-dependency-path: .gitagents-src/package-lock.json
       - uses: actions/download-artifact@v4
