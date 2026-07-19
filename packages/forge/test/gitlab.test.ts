@@ -6,7 +6,8 @@ import { Gitlab } from "@gitbeaker/rest";
 const repo: RepoRef = { forge: "gitlab", projectId: 123, slug: "grp/proj" };
 
 vi.mock("@gitbeaker/rest", () => ({
-  Gitlab: vi.fn().mockImplementation(() => ({
+  Gitlab: vi.fn().mockImplementation(function () {
+    return {
     MergeRequests: {
       show: vi.fn().mockResolvedValue({
         iid: 42,
@@ -46,7 +47,8 @@ vi.mock("@gitbeaker/rest", () => ({
         .fn()
         .mockResolvedValue({ content: "ZmlsZSBjb250ZW50", encoding: "base64" }),
     },
-  })),
+    };
+  }),
 }));
 
 describe("GitLabForge", () => {

@@ -4,6 +4,8 @@ const state = {
   selected: null,
   theme: "light",
   loading: false,
+  token: sessionStorage.getItem("gitagents-dashboard-token") ?? "",
+  authRequired: false,
 };
 
 const els = {
@@ -39,6 +41,11 @@ const els = {
   detailPanel: document.querySelector("#detailPanel"),
   detailList: document.querySelector("#detailList"),
   closeDetail: document.querySelector("#closeDetail"),
+  authPanel: document.querySelector("#authPanel"),
+  authForm: document.querySelector("#authForm"),
+  tokenInput: document.querySelector("#tokenInput"),
+  authError: document.querySelector("#authError"),
+  lockButton: document.querySelector("#lockButton"),
 };
 
 initializeTheme();
@@ -53,6 +60,22 @@ els.statusFilter.addEventListener("change", render);
 els.searchInput.addEventListener("input", render);
 els.closeDetail.addEventListener("click", () => {
   els.detailPanel.classList.remove("open");
+});
+els.authForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  const token = els.tokenInput.value.trim();
+  if (!token) return;
+  state.token = token;
+  state.authRequired = false;
+  sessionStorage.setItem("gitagents-dashboard-token", token);
+  hideAuthPanel();
+  void loadTelemetry();
+});
+els.lockButton.addEventListener("click", () => {
+  state.token = "";
+  state.authRequired = true;
+  sessionStorage.removeItem("gitagents-dashboard-token");
+  showAuthPanel("Token cleared.");
 });
 
 await loadTelemetry();
@@ -78,13 +101,26 @@ function setTheme(theme, persist) {
 }
 
 async function loadTelemetry() {
-  if (state.loading) return;
+  if (state.loading || (state.authRequired && !state.token)) return;
   state.loading = true;
   try {
-    const response = await fetch(`/api/telemetry?cache=${Date.now()}`);
+    const headers = state.token
+      ? { authorization: `Bearer ${state.token}` }
+      : {};
+    const response = await fetch(`/api/telemetry?cache=${Date.now()}`, { headers });
+    if (response.status === 401) {
+      state.token = "";
+      state.authRequired = true;
+      sessionStorage.removeItem("gitagents-dashboard-token");
+      showAuthPanel("That token was not accepted.");
+      throw new Error("Dashboard authentication required");
+    }
     if (!response.ok) {
       throw new Error(`Dashboard API ${response.status}`);
     }
+    state.authRequired = false;
+    hideAuthPanel();
+    els.lockButton.hidden = !state.token;
     state.artifact = await response.json();
     state.actions = Array.isArray(state.artifact.actions)
       ? state.artifact.actions.slice().sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt))
@@ -105,6 +141,18 @@ async function loadTelemetry() {
   fillRunFilter();
   fillAgentFilter();
   render();
+}
+
+function showAuthPanel(message = "") {
+  els.authError.textContent = message;
+  els.authPanel.hidden = false;
+  els.tokenInput.value = "";
+  queueMicrotask(() => els.tokenInput.focus());
+}
+
+function hideAuthPanel() {
+  els.authPanel.hidden = true;
+  els.authError.textContent = "";
 }
 
 function fillRunFilter() {
@@ -144,7 +192,11 @@ function render() {
 function sourceLabel() {
   if (state.artifact?.dashboardSource) {
     const source = state.artifact.dashboardSource;
-    const mode = source.mode === "postgres" ? "Postgres dashboard ingest" : "Memory dashboard ingest";
+    const mode = source.mode === "postgres"
+      ? "Postgres dashboard ingest"
+      : source.mode === "d1"
+        ? "Cloudflare D1 dashboard ingest"
+        : "Memory dashboard ingest";
     return `${mode} | started ${formatDate(source.startedAt)} | ${formatInteger(source.actionCount ?? 0)} actions stored`;
   }
   if (state.artifact?.gitlabSource) {

@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { buildSystemPrompt, buildUserPrompt } from "../src/prompt-builder";
-import type { ClaudeSystemPrompt, RuleMap, Personality, ReviewContext } from "@gitagents/core";
+import type { LlmSystemPrompt, RuleMap, Personality, ReviewContext } from "@gitagents/core";
 
-function promptText(prompt: ClaudeSystemPrompt): string {
+function promptText(prompt: LlmSystemPrompt): string {
   return typeof prompt === "string" ? prompt : prompt.map((block) => block.text).join("\n\n");
 }
 

@@ -1,3 +1,6 @@
+import { getModelPricing, type ModelPricingOverride } from "./llm/pricing.js";
+import type { LlmProviderId, NormalizedUsage } from "./llm/provider.js";
+
 export interface TokenUsage {
   inputTokens: number;
   outputTokens: number;
@@ -52,6 +55,7 @@ export interface TelemetrySink {
 
 export interface DashboardTelemetryRecorderOptions {
   dashboardUrl: string;
+  token?: string;
   runId?: string;
   metadata?: Record<string, unknown>;
 }
@@ -70,11 +74,13 @@ const EMPTY_USAGE: TokenUsage = {
 export class DashboardTelemetryRecorder implements TelemetrySink {
   readonly dashboardUrl: string;
   readonly runId: string;
+  private readonly token?: string;
   private metadata?: Record<string, unknown>;
   private pending: Array<Promise<void>> = [];
 
   constructor(options: DashboardTelemetryRecorderOptions) {
     this.dashboardUrl = options.dashboardUrl.replace(/\/$/, "");
+    this.token = options.token?.trim() || undefined;
     this.runId = options.runId ?? createId("run");
     this.metadata = options.metadata;
   }
@@ -94,11 +100,14 @@ export class DashboardTelemetryRecorder implements TelemetrySink {
   }
 
   private async post(action: AgentActionTelemetry): Promise<void> {
+    const headers: Record<string, string> = {
+      "content-type": "application/json",
+    };
+    if (this.token) headers.authorization = `Bearer ${this.token}`;
+
     const response = await fetch(`${this.dashboardUrl}/api/telemetry/actions`, {
       method: "POST",
-      headers: {
-        "content-type": "application/json",
-      },
+      headers,
       body: JSON.stringify({
         action,
         metadata: this.metadata,
@@ -117,18 +126,20 @@ export function createId(prefix: string): string {
     .slice(2, 10)}`;
 }
 
-export function buildClaudeTelemetryAction(input: {
+export function buildLlmTelemetryAction(input: {
   runId: string;
   context: ClaudeActionContext;
+  provider: LlmProviderId;
   model: string;
   startedAt: Date;
   endedAt: Date;
-  usage?: unknown;
+  usage: NormalizedUsage;
   status: "ok" | "error";
   error?: string;
+  pricingOverride?: ModelPricingOverride;
 }): AgentActionTelemetry {
-  const tokens = parseTokenUsage(input.usage);
-  const pricing = getClaudePricing(input.model);
+  const tokens = usageToTokenUsage(input.usage);
+  const pricing = getModelPricing(input.provider, input.model, input.pricingOverride);
   return {
     id: createId("act"),
     runId: input.runId,
@@ -145,6 +156,20 @@ export function buildClaudeTelemetryAction(input: {
     pricing,
     error: input.error,
     metadata: input.context.metadata,
+  };
+}
+
+function usageToTokenUsage(usage: NormalizedUsage): TokenUsage {
+  return {
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    cacheCreationInputTokens: usage.cacheWriteTokens,
+    cacheReadInputTokens: usage.cacheReadTokens,
+    totalTokens:
+      usage.inputTokens +
+      usage.outputTokens +
+      usage.cacheWriteTokens +
+      usage.cacheReadTokens,
   };
 }
 
@@ -188,58 +213,9 @@ export function calculateClaudeCost(
   return Number(cost.toFixed(8));
 }
 
+/** Anthropic pricing by model name. Kept for callers that price Claude models directly. */
 export function getClaudePricing(model: string): ClaudePricing {
-  const normalized = model.toLowerCase();
-
-  if (normalized.includes("haiku-3-5") || normalized.includes("haiku-3.5")) {
-    return {
-      inputPerMillion: 0.8,
-      outputPerMillion: 4,
-      cacheWritePerMillion: 1,
-      cacheReadPerMillion: 0.08,
-    };
-  }
-
-  if (normalized.includes("haiku")) {
-    return {
-      inputPerMillion: 1,
-      outputPerMillion: 5,
-      cacheWritePerMillion: 1.25,
-      cacheReadPerMillion: 0.1,
-    };
-  }
-
-  if (
-    normalized.includes("opus-4-7") ||
-    normalized.includes("opus-4.7") ||
-    normalized.includes("opus-4-6") ||
-    normalized.includes("opus-4.6") ||
-    normalized.includes("opus-4-5") ||
-    normalized.includes("opus-4.5")
-  ) {
-    return {
-      inputPerMillion: 5,
-      outputPerMillion: 25,
-      cacheWritePerMillion: 6.25,
-      cacheReadPerMillion: 0.5,
-    };
-  }
-
-  if (normalized.includes("opus")) {
-    return {
-      inputPerMillion: 15,
-      outputPerMillion: 75,
-      cacheWritePerMillion: 18.75,
-      cacheReadPerMillion: 1.5,
-    };
-  }
-
-  return {
-    inputPerMillion: 3,
-    outputPerMillion: 15,
-    cacheWritePerMillion: 3.75,
-    cacheReadPerMillion: 0.3,
-  };
+  return getModelPricing("anthropic", model);
 }
 
 function readNumber(record: Record<string, unknown>, key: string): number {

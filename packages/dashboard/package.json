@@ -7,12 +7,17 @@
   "scripts": {
     "dev": "tsx src/server.ts",
     "build": "tsc",
-    "start": "node dist/server.js"
+    "start": "node dist/server.js",
+    "worker:typecheck": "tsc -p tsconfig.worker.json",
+    "worker:dev": "wrangler dev",
+    "worker:deploy": "wrangler deploy",
+    "worker:deploy:dry-run": "wrangler deploy --dry-run"
   },
   "dependencies": {
     "pg": "^8.20.0"
   },
   "devDependencies": {
-    "@types/pg": "^8.20.0"
+    "@types/pg": "^8.20.0",
+    "wrangler": "^4.112.0"
   }
 }

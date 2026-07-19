@@ -1,21 +1,37 @@
 // The forge port (GitLab + GitHub adapters) lives in @gitagents/forge.
 
-// --- Claude ---
-export { ClaudeClient, RateLimitError } from "./claude/client.js";
+// --- LLM ---
+export { LlmClient, RateLimitError } from "./llm/client.js";
+export { resolveLlmConfig, createLlmProvider, createLlmClient } from "./llm/config.js";
+export type { LlmConfig } from "./llm/config.js";
+export { AnthropicProvider } from "./llm/anthropic.js";
+export { OpenAiProvider } from "./llm/openai.js";
+export { getModelPricing } from "./llm/pricing.js";
+export type { ModelPricing, ModelPricingOverride } from "./llm/pricing.js";
 export type {
-  ClaudeSystemPrompt,
-  ClaudeSystemPromptBlock,
-  ClaudeReviewRequest,
-  ClaudeReviewResponse,
-  ClaudeFixRequest,
-  ClaudeFixResponse,
-  ClaudeVerifyRequest,
-  ClaudeVerifyResponse,
-  ClaudeVerifyVerdict,
-  ClaudeTool,
-  ClaudeToolExecutor,
+  LlmProvider,
+  LlmProviderId,
+  LlmSystemBlock,
+  LlmToolSpec,
+  LlmToolCall,
+  LlmMessage,
+  LlmMessageRequest,
+  LlmMessageResponse,
+  LlmStopReason,
+  NormalizedUsage,
+} from "./llm/provider.js";
+export type {
+  LlmSystemPrompt,
+  LlmReviewRequest,
+  LlmReviewResponse,
+  LlmFixRequest,
+  LlmFixResponse,
+  LlmVerifyRequest,
+  LlmVerifyResponse,
+  LlmVerifyVerdict,
+  LlmToolExecutor,
   VerifyVerdictKind,
-} from "./claude/types.js";
+} from "./llm/types.js";
 
 // --- Config ---
 export {
@@ -73,7 +89,7 @@ export type {
 export {
   DashboardTelemetryRecorder,
   TELEMETRY_PRICING_SOURCE,
-  buildClaudeTelemetryAction,
+  buildLlmTelemetryAction,
   calculateClaudeCost,
   createId,
   getClaudePricing,

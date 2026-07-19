@@ -7,6 +7,20 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
+    <section id="authPanel" class="auth-panel" hidden aria-labelledby="authTitle">
+      <form id="authForm" class="auth-card">
+        <div class="logo" aria-hidden="true">GA</div>
+        <p class="eyebrow">Protected telemetry</p>
+        <h2 id="authTitle">Unlock dashboard</h2>
+        <p class="auth-copy">Enter the dashboard token. It stays in this browser tab only.</p>
+        <label class="auth-field">
+          <span>Access token</span>
+          <input id="tokenInput" type="password" autocomplete="current-password" required />
+        </label>
+        <p id="authError" class="auth-error" role="alert"></p>
+        <button class="icon-button auth-submit" type="submit">Unlock</button>
+      </form>
+    </section>
     <main class="shell">
       <header class="topbar">
         <div class="brand">
@@ -17,6 +31,7 @@
           </div>
         </div>
         <div class="toolbar">
+          <button id="lockButton" class="icon-button" type="button" title="Forget dashboard token" hidden>Lock</button>
           <button id="themeToggle" class="icon-button" type="button" aria-pressed="false" title="Toggle dark theme">Dark</button>
           <button id="refreshButton" class="icon-button" type="button" title="Refresh telemetry">Refresh</button>
         </div>

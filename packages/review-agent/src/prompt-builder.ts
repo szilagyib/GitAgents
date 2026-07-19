@@ -1,4 +1,4 @@
-import type { ClaudeSystemPrompt, RuleMap, Personality, ReviewContext } from "@gitagents/core";
+import type { LlmSystemPrompt, RuleMap, Personality, ReviewContext } from "@gitagents/core";
 import { minimatch } from "minimatch";
 import type { ProjectProfileDetection } from "./project-profile.js";
 
@@ -126,7 +126,7 @@ export function buildSystemPrompt(
   context: ReviewContext,
   filePath: string,
   projectProfile?: ProjectProfileDetection
-): ClaudeSystemPrompt {
+): LlmSystemPrompt {
   const parts: string[] = [];
 
   if (projectProfile) {

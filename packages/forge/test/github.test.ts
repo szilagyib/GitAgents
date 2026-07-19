@@ -20,10 +20,12 @@ const paginateMock = vi.fn();
 const graphqlMock = vi.fn();
 
 vi.mock("@octokit/rest", () => ({
-  Octokit: vi.fn().mockImplementation(() => ({
-    rest: restMocks,
-    paginate: paginateMock,
-  })),
+  Octokit: vi.fn().mockImplementation(function () {
+    return {
+      rest: restMocks,
+      paginate: paginateMock,
+    };
+  }),
 }));
 vi.mock("@octokit/graphql", () => ({
   graphql: { defaults: vi.fn(() => graphqlMock) },

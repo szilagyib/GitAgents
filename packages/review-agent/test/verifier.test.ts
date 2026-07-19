@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { verifyFileFindings } from "../src/verifier";
-import type { ClaudeClient, Finding } from "@gitagents/core";
+import type { LlmClient, Finding } from "@gitagents/core";
 
 const finding = (overrides: Partial<Finding> = {}): Finding => ({
   line: 1,
@@ -15,8 +15,8 @@ const finding = (overrides: Partial<Finding> = {}): Finding => ({
   ...overrides,
 });
 
-function clientWith(verifyFindings: ReturnType<typeof vi.fn>): ClaudeClient {
-  return { verifyFindings } as unknown as ClaudeClient;
+function clientWith(verifyFindings: ReturnType<typeof vi.fn>): LlmClient {
+  return { verifyFindings } as unknown as LlmClient;
 }
 
 describe("verifyFileFindings", () => {

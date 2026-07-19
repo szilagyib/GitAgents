@@ -1,22 +1,22 @@
 import type {
-  ClaudeClient,
-  ClaudeSystemPrompt,
-  ClaudeTool,
-  ClaudeToolExecutor,
+  LlmClient,
+  LlmSystemPrompt,
+  LlmToolSpec,
+  LlmToolExecutor,
   Finding,
   RejectedFinding,
 } from "@gitagents/core";
 
 export interface VerifyFileFindingsInput {
-  claudeClient: ClaudeClient;
+  claudeClient: LlmClient;
   filePath: string;
   /** The hybrid diff+context already built for the review pass, reused as evidence. */
   fileContext: string;
   findings: Finding[];
   timeoutMs: number;
   /** Read-only evidence tools; omitted, the verifier judges on the prompt alone. */
-  tools?: ClaudeTool[];
-  executeTool?: ClaudeToolExecutor;
+  tools?: LlmToolSpec[];
+  executeTool?: LlmToolExecutor;
   maxToolRounds?: number;
 }
 
@@ -26,7 +26,7 @@ export interface VerifyFileFindingsResult {
   verificationRan: boolean;
 }
 
-const VERIFIER_SYSTEM_PROMPT: ClaudeSystemPrompt = [
+const VERIFIER_SYSTEM_PROMPT: LlmSystemPrompt = [
   {
     text: `You are a skeptical senior engineer. Your ONLY job is to REFUTE proposed code-review findings.
 

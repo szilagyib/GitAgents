@@ -1,0 +1,20 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "gitagents-dashboard",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-07-18",
+  "assets": {
+    "directory": "public",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "GITAGENTS_DASHBOARD_MAX_ACTIONS": "5000",
+    "GITAGENTS_DASHBOARD_MAX_BODY_BYTES": "1000000"
+  }
+}

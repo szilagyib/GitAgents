@@ -53,6 +53,7 @@ describe("telemetry", () => {
 
     const recorder = new DashboardTelemetryRecorder({
       dashboardUrl: "https://dashboard.example/",
+      token: "dashboard-token",
       runId: "run-1",
       metadata: { projectId: 7 },
     });
@@ -85,6 +86,7 @@ describe("telemetry", () => {
         method: "POST",
         headers: expect.objectContaining({
           "content-type": "application/json",
+          authorization: "Bearer dashboard-token",
         }),
       }),
     );
