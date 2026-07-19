@@ -155,12 +155,15 @@ Publish manually from a local checkout; no Git auto-deploy connection is require
 npm ci
 npm run dashboard:worker:typecheck
 npx wrangler login
+npx wrangler d1 create gitagents-dashboard
 npx wrangler deploy --config packages/dashboard/wrangler.jsonc
 npx wrangler d1 migrations apply DB --remote --config packages/dashboard/wrangler.jsonc
 npx wrangler secret put DASHBOARD_TOKEN --config packages/dashboard/wrangler.jsonc
 ```
 
-The first deploy provisions the `DB` D1 binding declared in `wrangler.jsonc`. The migration creates the telemetry table, and `secret put` prompts for the shared dashboard token without writing it to disk. Future releases use the same `wrangler deploy` command.
+D1 databases are never auto-provisioned, so `d1 create` comes first — copy the `database_id` it prints into the `d1_databases` entry in `wrangler.jsonc`, or `wrangler deploy` fails on the unresolved `DB` binding. The migration then creates the telemetry table, and `secret put` prompts for the shared dashboard token without writing it to disk. Future releases use the same `wrangler deploy` command.
+
+`GITAGENTS_DASHBOARD_MAX_ACTIONS` is capped at 1000 to stay inside the 10ms-per-request CPU limit on the Workers free plan; raise it only on a paid plan.
 
 Do not put `DASHBOARD_TOKEN` in `wrangler.jsonc` or a public GitHub variable. Save it as the `GITAGENTS_DASHBOARD_TOKEN` repository secret in each consumer.
 

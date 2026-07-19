@@ -10,11 +10,13 @@
   "d1_databases": [
     {
       "binding": "DB",
+      "database_name": "gitagents-dashboard",
+      "database_id": "8a10fe29-fe53-4df9-a170-1164e7fc6c07",
       "migrations_dir": "migrations"
     }
   ],
   "vars": {
-    "GITAGENTS_DASHBOARD_MAX_ACTIONS": "5000",
+    "GITAGENTS_DASHBOARD_MAX_ACTIONS": "1000",
     "GITAGENTS_DASHBOARD_MAX_BODY_BYTES": "1000000"
   }
 }
